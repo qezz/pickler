@@ -3,6 +3,14 @@ name = "pickler"
 version = "0.1.0"
 edition = "2024"
 
+authors = ["Sergei Mishin"]
+
+description = "Library for parsing and manipulating Pickle data"
+repository = "https://github.com/qezz/pickler"
+license = "MIT"
+
+keywords = ["pickle", "python", "parser"]
+
 [dependencies]
 
 [dev-dependencies]
