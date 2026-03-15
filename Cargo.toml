@@ -9,6 +9,9 @@ edition = "2024"
 criterion = "0.8.2"
 serde-pickle = "1.2.0"
 
+[lib]
+bench = false
+
 [[bench]]
 name = "bench"
 harness = false
