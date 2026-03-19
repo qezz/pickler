@@ -1,4 +1,4 @@
-use crate::{PickleData, PickleValue, op::*};
+use crate::{PickleData, PickleValue, op::*, sizes::*};
 
 #[derive(Debug)]
 pub enum Error {
@@ -126,8 +126,8 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                 frame = read_fixed!(data, pos, FRAME_LEN, op);
             }
             NONE => stack.push(PickleValue::None),
-            TRUE => stack.push(PickleValue::Bool(true)),
-            FALSE => stack.push(PickleValue::Bool(false)),
+            NEWTRUE => stack.push(PickleValue::Bool(true)),
+            NEWFALSE => stack.push(PickleValue::Bool(false)),
             BININT1 => {
                 let b = read_fixed!(data, pos, BININT1_LEN, op);
 
