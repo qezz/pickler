@@ -1,4 +1,4 @@
-use crate::{PickleData, PickleValue, op::*, sizes::*};
+use crate::{PickleData, PickleValue, op, sizes::*};
 
 #[derive(Debug)]
 pub enum Error {
@@ -115,109 +115,109 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
         pos += 1;
 
         match op {
-            STOP => {
+            op::STOP => {
                 break;
             }
-            PROTO => {
+            op::PROTO => {
                 let b = read_fixed!(data, pos, PROTO_LEN, op);
                 proto = b[0];
             }
-            FRAME => {
+            op::FRAME => {
                 frame = read_fixed!(data, pos, FRAME_LEN, op);
             }
-            NONE => stack.push(PickleValue::None),
-            NEWTRUE => stack.push(PickleValue::Bool(true)),
-            NEWFALSE => stack.push(PickleValue::Bool(false)),
-            BININT1 => {
+            op::NONE => stack.push(PickleValue::None),
+            op::NEWTRUE => stack.push(PickleValue::Bool(true)),
+            op::NEWFALSE => stack.push(PickleValue::Bool(false)),
+            op::BININT1 => {
                 let b = read_fixed!(data, pos, BININT1_LEN, op);
 
                 stack.push(PickleValue::Int(b[0] as i64));
             }
-            BININT2 => {
+            op::BININT2 => {
                 let b = read_fixed!(data, pos, BININT2_LEN, op);
                 let v = u16::from_le_bytes(b) as i64;
 
                 stack.push(PickleValue::Int(v));
             }
-            BININT => {
+            op::BININT => {
                 let b = read_fixed!(data, pos, BININT4_LEN, op);
                 let v = i32::from_le_bytes(b) as i64;
 
                 stack.push(PickleValue::Int(v));
             }
-            BINFLOAT => {
+            op::BINFLOAT => {
                 let b = read_fixed!(data, pos, BINFLOAT_LEN, op);
                 let v = f64::from_be_bytes(b);
 
                 stack.push(PickleValue::Float(v));
             }
-            LONG1 => {
+            op::LONG1 => {
                 let b = read_length_prefixed!(data, pos, op, 1);
 
                 stack.push(PickleValue::BigInt(b));
             }
-            LONG4 => {
+            op::LONG4 => {
                 let b = read_length_prefixed!(data, pos, op, 4);
 
                 stack.push(PickleValue::BigInt(b));
             }
-            SHORT_BINUNICODE => {
+            op::SHORT_BINUNICODE => {
                 let b = read_length_prefixed!(data, pos, op, 1);
                 let s = std::str::from_utf8(b).map_err(|_| Error::InvalidUtf8)?;
 
                 stack.push(PickleValue::String(s));
             }
-            BINUNICODE => {
+            op::BINUNICODE => {
                 let b = read_length_prefixed!(data, pos, op, 4);
                 let s = std::str::from_utf8(b).map_err(|_| Error::InvalidUtf8)?;
 
                 stack.push(PickleValue::String(s));
             }
-            SHORT_BINBYTES => {
+            op::SHORT_BINBYTES => {
                 let b = read_length_prefixed!(data, pos, op, 1);
 
                 stack.push(PickleValue::Bytes(b));
             }
-            BINBYTES => {
+            op::BINBYTES => {
                 let b = read_length_prefixed!(data, pos, op, 4);
 
                 stack.push(PickleValue::Bytes(b));
             }
-            EMPTY_LIST => stack.push(PickleValue::List(Vec::new())),
-            EMPTY_TUPLE => stack.push(PickleValue::Tuple(Vec::new())),
-            EMPTY_DICT => stack.push(PickleValue::Dict(Vec::new())),
-            EMPTY_SET => stack.push(PickleValue::Set(Vec::new())),
-            TUPLE1 => {
+            op::EMPTY_LIST => stack.push(PickleValue::List(Vec::new())),
+            op::EMPTY_TUPLE => stack.push(PickleValue::Tuple(Vec::new())),
+            op::EMPTY_DICT => stack.push(PickleValue::Dict(Vec::new())),
+            op::EMPTY_SET => stack.push(PickleValue::Set(Vec::new())),
+            op::TUPLE1 => {
                 let a = pop_value(&mut stack, op)?;
 
                 stack.push(PickleValue::Tuple(vec![a]));
             }
-            TUPLE2 => {
+            op::TUPLE2 => {
                 let b = pop_value(&mut stack, op)?;
                 let a = pop_value(&mut stack, op)?;
 
                 stack.push(PickleValue::Tuple(vec![a, b]));
             }
-            TUPLE3 => {
+            op::TUPLE3 => {
                 let c = pop_value(&mut stack, op)?;
                 let b = pop_value(&mut stack, op)?;
                 let a = pop_value(&mut stack, op)?;
 
                 stack.push(PickleValue::Tuple(vec![a, b, c]));
             }
-            MARK => marks.push(stack.len()),
-            MEMOIZE => {
+            op::MARK => marks.push(stack.len()),
+            op::MEMOIZE => {
                 let top = stack.last().ok_or(Error::NoValueOnStack)?.clone();
 
                 memo.push(top);
             }
-            BINGET => {
+            op::BINGET => {
                 let idx = read_fixed!(data, pos, BINGET_LEN, op)[0] as usize;
                 let v = memo.get(idx).ok_or(Error::IndexOutOfRange { op })?.clone();
 
                 stack.push(v);
             }
-            LONG_BINGET => {
+            op::LONG_BINGET => {
                 let bytes = read_fixed!(data, pos, LONG_BINGET_LEN, op);
                 let idx = u32::from_le_bytes(bytes) as usize;
 
@@ -225,7 +225,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 stack.push(v);
             }
-            SETITEM => {
+            op::SETITEM => {
                 let value = pop_value(&mut stack, op)?;
                 let key = pop_value(&mut stack, op)?;
 
@@ -236,7 +236,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     _ => return Err(Error::SetitemWithoutDict { op }),
                 }
             }
-            SETITEMS => {
+            op::SETITEMS => {
                 let items = pop_to_mark(&mut stack, &mut marks, op)?;
                 let mut iter = items.into_iter();
                 let mut pairs = Vec::new();
@@ -253,7 +253,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     _ => return Err(Error::SetitemsWithoutDict { op }),
                 }
             }
-            APPENDS => {
+            op::APPENDS => {
                 let items = pop_to_mark(&mut stack, &mut marks, op)?;
 
                 match stack.last_mut() {
@@ -263,7 +263,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     _ => return Err(Error::AppendsWithoutList { op }),
                 }
             }
-            ADDITEMS => {
+            op::ADDITEMS => {
                 let items = pop_to_mark(&mut stack, &mut marks, op)?;
 
                 match stack.last_mut() {
@@ -273,17 +273,17 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     _ => return Err(Error::AdditemsWithoutSet { op }),
                 }
             }
-            FROZENSET => {
+            op::FROZENSET => {
                 let items = pop_to_mark(&mut stack, &mut marks, op)?;
 
                 stack.push(PickleValue::FrozenSet(items));
             }
-            TUPLE => {
+            op::TUPLE => {
                 let items = pop_to_mark(&mut stack, &mut marks, op)?;
 
                 stack.push(PickleValue::Tuple(items));
             }
-            GLOBAL => {
+            op::GLOBAL => {
                 let rest = &data[pos..];
                 let first_nl = rest.iter().position(|&b| b == b'\n').ok_or(Error::Eof)?;
                 let after_first = &rest[first_nl + 1..];
@@ -301,7 +301,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 stack.push(PickleValue::Global { module, attr });
             }
-            STACK_GLOBAL => {
+            op::STACK_GLOBAL => {
                 let attr_val = pop_value(&mut stack, op)?;
                 let module_val = pop_value(&mut stack, op)?;
 
@@ -312,7 +312,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     _ => return Err(Error::InvalidGlobal { op }),
                 }
             }
-            REDUCE => {
+            op::REDUCE => {
                 let args_val = pop_value(&mut stack, op)?;
                 let callable = pop_value(&mut stack, op)?;
 
@@ -333,7 +333,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     state: Box::new(PickleValue::None),
                 });
             }
-            NEWOBJ => {
+            op::NEWOBJ => {
                 let args_val = pop_value(&mut stack, op)?;
                 let callable = pop_value(&mut stack, op)?;
 
@@ -354,7 +354,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     state: Box::new(PickleValue::None),
                 });
             }
-            NEWOBJ_EX => {
+            op::NEWOBJ_EX => {
                 let _kwargs = pop_value(&mut stack, op)?;
                 let args_val = pop_value(&mut stack, op)?;
                 let callable = pop_value(&mut stack, op)?;
@@ -376,7 +376,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     state: Box::new(PickleValue::None),
                 });
             }
-            BUILD => {
+            op::BUILD => {
                 let state = pop_value(&mut stack, op)?;
 
                 match stack.last_mut() {
@@ -388,7 +388,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     _ => return Err(Error::BuildWithoutObject { op }),
                 }
             }
-            BINPUT => {
+            op::BINPUT => {
                 let idx = read_fixed!(data, pos, BINPUT_LEN, op)[0] as usize;
                 let top = stack.last().ok_or(Error::NoValueOnStack)?.clone();
 
@@ -398,7 +398,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 memo[idx] = top;
             }
-            LONG_BINPUT => {
+            op::LONG_BINPUT => {
                 let bytes = read_fixed!(data, pos, LONG_BINPUT_LEN, op);
                 let idx = u32::from_le_bytes(bytes) as usize;
                 let top = stack.last().ok_or(Error::NoValueOnStack)?.clone();
@@ -409,7 +409,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 memo[idx] = top;
             }
-            APPEND => {
+            op::APPEND => {
                 let item = pop_value(&mut stack, op)?;
 
                 match stack.last_mut() {
@@ -419,19 +419,19 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     _ => return Err(Error::AppendsWithoutList { op }),
                 }
             }
-            DUP => {
+            op::DUP => {
                 let top = stack.last().ok_or(Error::NoValueOnStack)?.clone();
 
                 stack.push(top);
             }
-            POP => {
+            op::POP => {
                 // TODO: check if this should error out
                 stack.pop();
             }
-            POP_MARK => {
+            op::POP_MARK => {
                 pop_to_mark(&mut stack, &mut marks, op)?;
             }
-            BINPERSID => {
+            op::BINPERSID => {
                 let pid = pop_value(&mut stack, op)?;
 
                 stack.push(pid);
