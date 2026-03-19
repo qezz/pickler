@@ -19,7 +19,3 @@ serde-pickle = "1.2.0"
 
 [lib]
 bench = false
-
-[[bench]]
-name = "bench"
-harness = false
