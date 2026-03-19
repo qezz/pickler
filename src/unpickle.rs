@@ -156,6 +156,11 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 stack.push(PickleValue::BigInt(b));
             }
+            LONG4 => {
+                let b = read_length_prefixed!(data, pos, op, 4);
+
+                stack.push(PickleValue::BigInt(b));
+            }
             SHORT_BINUNICODE => {
                 let b = read_length_prefixed!(data, pos, op, 1);
                 let s = std::str::from_utf8(b).map_err(|_| Error::InvalidUtf8)?;

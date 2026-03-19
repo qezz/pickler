@@ -15,6 +15,7 @@ pub mod op {
     pub const BININT2: u8 = 0x4d;
     pub const BININT: u8 = 0x4a;
     pub const LONG1: u8 = 0x8a;
+    pub const LONG4: u8 = 0x8b;
 
     pub const BINFLOAT: u8 = 0x47;
 
@@ -80,7 +81,7 @@ pub enum PickleValue<'a> {
     None,
     Bool(bool),
     Int(i64),
-    BigInt(&'a [u8]),
+    BigInt(&'a [u8]), // TODO: we probably should be able to distinguish between different types of big ints, e.g. LONG1 vs LONG4
     Float(f64),
     String(&'a str),
     Bytes(&'a [u8]),
