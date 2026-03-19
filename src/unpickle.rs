@@ -9,7 +9,7 @@ pub enum Error {
     UnsupportedOpcode(u8),
     InvalidUtf8,
     IndexOutOfRange { op: u8 },
-    StackUndeflow { op: u8 },
+    StackUnderflow { op: u8 },
     NoValueOnStack,
     NoMarkFound { op: u8 },
     SetitemWithoutDict { op: u8 },
@@ -82,7 +82,7 @@ macro_rules! read_length_prefixed {
 
 #[inline]
 fn pop_value<'a>(stack: &mut Vec<PickleValue<'a>>, op: u8) -> Result<PickleValue<'a>, Error> {
-    stack.pop().ok_or(Error::StackUndeflow { op })
+    stack.pop().ok_or(Error::StackUnderflow { op })
 }
 
 #[inline]
