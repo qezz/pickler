@@ -48,9 +48,9 @@ macro_rules! read_fixed {
 }
 
 macro_rules! read_length_prefixed {
-    ($data:expr, $pos:expr, $op:expr, u8) => {{
-        let prefix = read_fixed!($data, $pos, 1, $op);
-        let n = prefix[0] as usize;
+    ($data:expr, $pos:expr, $op:expr, 1) => {{
+        let size = read_fixed!($data, $pos, 1, $op);
+        let n = size[0] as usize;
 
         if $pos + n > $data.len() {
             return Err(Error::TruncatedData {
@@ -63,9 +63,11 @@ macro_rules! read_length_prefixed {
         $pos += n;
         &$data[start..start + n]
     }};
-    ($data:expr, $pos:expr, $op:expr, u32) => {{
+    ($data:expr, $pos:expr, $op:expr, 4) => {{
         let prefix = read_fixed!($data, $pos, 4, $op);
         let n = u32::from_le_bytes(prefix) as usize;
+        // TODO: python pickle implementation reads 4 bytes as signed size, but requires it to be signed.
+        // Ensure the u32 value is not over i32::MAX
 
         if $pos + n > $data.len() {
             return Err(Error::TruncatedData {
@@ -150,29 +152,29 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                 stack.push(PickleValue::Float(v));
             }
             LONG1 => {
-                let b = read_length_prefixed!(data, pos, op, u8);
+                let b = read_length_prefixed!(data, pos, op, 1);
 
                 stack.push(PickleValue::BigInt(b));
             }
             SHORT_BINUNICODE => {
-                let b = read_length_prefixed!(data, pos, op, u8);
+                let b = read_length_prefixed!(data, pos, op, 1);
                 let s = std::str::from_utf8(b).map_err(|_| Error::InvalidUtf8)?;
 
                 stack.push(PickleValue::String(s));
             }
             BINUNICODE => {
-                let b = read_length_prefixed!(data, pos, op, u32);
+                let b = read_length_prefixed!(data, pos, op, 4);
                 let s = std::str::from_utf8(b).map_err(|_| Error::InvalidUtf8)?;
 
                 stack.push(PickleValue::String(s));
             }
             SHORT_BINBYTES => {
-                let b = read_length_prefixed!(data, pos, op, u8);
+                let b = read_length_prefixed!(data, pos, op, 1);
 
                 stack.push(PickleValue::Bytes(b));
             }
             BINBYTES => {
-                let b = read_length_prefixed!(data, pos, op, u32);
+                let b = read_length_prefixed!(data, pos, op, 4);
 
                 stack.push(PickleValue::Bytes(b));
             }
