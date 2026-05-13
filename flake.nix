@@ -4,7 +4,7 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-    nixpkgs-mozilla.url = "github:mozilla/nixpkgs-mozilla";
+    rust-overlay.url = "github:oxalica/rust-overlay";
   };
 
   outputs =
@@ -12,7 +12,7 @@
       self,
       nixpkgs,
       flake-utils,
-      nixpkgs-mozilla,
+      rust-overlay,
       ...
     }:
     flake-utils.lib.eachDefaultSystem (
@@ -20,24 +20,29 @@
       let
         pkgs = import nixpkgs {
           inherit system;
-          overlays = [ (import nixpkgs-mozilla) ];
+          overlays = [ rust-overlay.overlays.default ];
         };
 
-        rusttoolchain =
-          (pkgs.rustChannelOf {
-            rustToolchain = ./rust-toolchain.toml;
-            sha256 = "sha256-qqF33vNuAdU5vua96VKVIwuc43j4EFeEXbjQ6+l4mO4=";
-          }).rust;
+        stable = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+        nightly = pkgs.rust-bin.nightly.latest.default;
       in
       {
         devShells = {
           default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
-              rusttoolchain
+              stable
               python315
             ];
 
             RUST_SRC_PATH = pkgs.rustPlatform.rustLibSrc;
+          };
+
+          fuzz = pkgs.mkShell {
+            nativeBuildInputs = with pkgs; [
+              nightly
+              cargo-fuzz
+              python315
+            ];
           };
         };
       }
