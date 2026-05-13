@@ -408,6 +408,10 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                 let idx = u32::from_le_bytes(bytes) as usize;
                 let top = stack.last().ok_or(Error::NoValueOnStack)?.clone();
 
+                if idx > data.len() {
+                    return Err(Error::IndexOutOfRange { op });
+                }
+
                 if idx >= memo.len() {
                     memo.resize(idx + 1, PickleValue::None);
                 }
