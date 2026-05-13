@@ -1,6 +1,6 @@
 use crate::{PickleData, PickleValue, op, sizes::*};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Error {
     TruncatedOpcode(u8),
     TruncatedData { op: u8, expected_len: usize },
@@ -94,6 +94,11 @@ fn pop_to_mark<'a>(
     op: u8,
 ) -> Result<Vec<PickleValue<'a>>, Error> {
     let mark_pos = marks.pop().ok_or(Error::NoMarkFound { op })?;
+
+    if mark_pos > stack.len() {
+        return Err(Error::NoMarkFound { op });
+    }
+
     Ok(stack.split_off(mark_pos))
 }
 
@@ -448,4 +453,22 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
         frame,
         root: val,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pop_to_mark_below_stack_len_does_not_panic() {
+        let data = [op::PROTO, 0x02, op::NONE, op::MARK, op::POP, op::APPENDS];
+
+        let res = unpickle(&data);
+
+        assert_eq!(
+            res,
+            Err(Error::NoMarkFound { op: op::APPENDS }),
+            "malformed input must have produced error"
+        );
+    }
 }
