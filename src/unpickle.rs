@@ -191,6 +191,16 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 stack.push(PickleValue::Bytes(b));
             }
+            op::SHORT_BINSTRING => {
+                let b = read_length_prefixed!(data, pos, op, 1);
+
+                stack.push(PickleValue::Bytes(b));
+            }
+            op::BINSTRING => {
+                let b = read_length_prefixed!(data, pos, op, 4);
+
+                stack.push(PickleValue::Bytes(b));
+            }
             op::EMPTY_LIST => stack.push(PickleValue::List(Arc::new(Vec::new()))),
             op::EMPTY_TUPLE => stack.push(PickleValue::Tuple(Arc::new(Vec::new()))),
             op::EMPTY_DICT => stack.push(PickleValue::Dict(Arc::new(Vec::new()))),
