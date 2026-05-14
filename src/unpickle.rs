@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use crate::{PickleData, PickleValue, op, sizes::*};
 
 #[derive(Debug, Eq, PartialEq)]
@@ -107,6 +109,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
     let mut stack: Vec<PickleValue<'_>> = Vec::new();
     let mut marks: Vec<usize> = Vec::new();
     let mut memo: Vec<PickleValue<'_>> = Vec::new();
+    let mut empty_state: Option<Arc<PickleValue<'_>>> = None;
 
     let mut proto: u8 = 0;
     let mut frame: [u8; 8] = [0; 8];
@@ -188,27 +191,27 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 stack.push(PickleValue::Bytes(b));
             }
-            op::EMPTY_LIST => stack.push(PickleValue::List(Vec::new())),
-            op::EMPTY_TUPLE => stack.push(PickleValue::Tuple(Vec::new())),
-            op::EMPTY_DICT => stack.push(PickleValue::Dict(Vec::new())),
-            op::EMPTY_SET => stack.push(PickleValue::Set(Vec::new())),
+            op::EMPTY_LIST => stack.push(PickleValue::List(Arc::new(Vec::new()))),
+            op::EMPTY_TUPLE => stack.push(PickleValue::Tuple(Arc::new(Vec::new()))),
+            op::EMPTY_DICT => stack.push(PickleValue::Dict(Arc::new(Vec::new()))),
+            op::EMPTY_SET => stack.push(PickleValue::Set(Arc::new(Vec::new()))),
             op::TUPLE1 => {
                 let a = pop_value(&mut stack, op)?;
 
-                stack.push(PickleValue::Tuple(vec![a]));
+                stack.push(PickleValue::Tuple(Arc::new(vec![a])));
             }
             op::TUPLE2 => {
                 let b = pop_value(&mut stack, op)?;
                 let a = pop_value(&mut stack, op)?;
 
-                stack.push(PickleValue::Tuple(vec![a, b]));
+                stack.push(PickleValue::Tuple(Arc::new(vec![a, b])));
             }
             op::TUPLE3 => {
                 let c = pop_value(&mut stack, op)?;
                 let b = pop_value(&mut stack, op)?;
                 let a = pop_value(&mut stack, op)?;
 
-                stack.push(PickleValue::Tuple(vec![a, b, c]));
+                stack.push(PickleValue::Tuple(Arc::new(vec![a, b, c])));
             }
             op::MARK => marks.push(stack.len()),
             op::MEMOIZE => {
@@ -236,7 +239,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 match stack.last_mut() {
                     Some(PickleValue::Dict(entries)) => {
-                        entries.push((key, value));
+                        Arc::make_mut(entries).push((key, value));
                     }
                     _ => return Err(Error::SetitemWithoutDict { op }),
                 }
@@ -253,7 +256,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 match stack.last_mut() {
                     Some(PickleValue::Dict(entries)) => {
-                        entries.extend(pairs);
+                        Arc::make_mut(entries).extend(pairs);
                     }
                     _ => return Err(Error::SetitemsWithoutDict { op }),
                 }
@@ -263,7 +266,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 match stack.last_mut() {
                     Some(PickleValue::List(list)) => {
-                        list.extend(items);
+                        Arc::make_mut(list).extend(items);
                     }
                     _ => return Err(Error::AppendsWithoutList { op }),
                 }
@@ -273,7 +276,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 match stack.last_mut() {
                     Some(PickleValue::Set(set)) => {
-                        set.extend(items);
+                        Arc::make_mut(set).extend(items);
                     }
                     _ => return Err(Error::AdditemsWithoutSet { op }),
                 }
@@ -281,12 +284,12 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
             op::FROZENSET => {
                 let items = pop_to_mark(&mut stack, &mut marks, op)?;
 
-                stack.push(PickleValue::FrozenSet(items));
+                stack.push(PickleValue::FrozenSet(Arc::new(items)));
             }
             op::TUPLE => {
                 let items = pop_to_mark(&mut stack, &mut marks, op)?;
 
-                stack.push(PickleValue::Tuple(items));
+                stack.push(PickleValue::Tuple(Arc::new(items)));
             }
             op::GLOBAL => {
                 let rest = &data[pos..];
@@ -328,14 +331,16 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 let args = match args_val {
                     PickleValue::Tuple(items) => items,
-                    _ => vec![args_val],
+                    _ => Arc::new(vec![args_val]),
                 };
 
                 stack.push(PickleValue::Object {
                     module,
                     attr,
                     args,
-                    state: Box::new(PickleValue::None),
+                    state: Arc::clone(
+                        empty_state.get_or_insert_with(|| Arc::new(PickleValue::None)),
+                    ),
                 });
             }
             op::NEWOBJ => {
@@ -349,14 +354,16 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 let args = match args_val {
                     PickleValue::Tuple(items) => items,
-                    _ => vec![args_val],
+                    _ => Arc::new(vec![args_val]),
                 };
 
                 stack.push(PickleValue::Object {
                     module,
                     attr,
                     args,
-                    state: Box::new(PickleValue::None),
+                    state: Arc::clone(
+                        empty_state.get_or_insert_with(|| Arc::new(PickleValue::None)),
+                    ),
                 });
             }
             op::NEWOBJ_EX => {
@@ -371,14 +378,16 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 let args = match args_val {
                     PickleValue::Tuple(items) => items,
-                    _ => vec![args_val],
+                    _ => Arc::new(vec![args_val]),
                 };
 
                 stack.push(PickleValue::Object {
                     module,
                     attr,
                     args,
-                    state: Box::new(PickleValue::None),
+                    state: Arc::clone(
+                        empty_state.get_or_insert_with(|| Arc::new(PickleValue::None)),
+                    ),
                 });
             }
             op::BUILD => {
@@ -388,7 +397,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
                     Some(PickleValue::Object {
                         state: obj_state, ..
                     }) => {
-                        *obj_state = Box::new(state);
+                        *obj_state = Arc::new(state);
                     }
                     _ => return Err(Error::BuildWithoutObject { op }),
                 }
@@ -423,7 +432,7 @@ pub fn unpickle(data: &[u8]) -> Result<PickleData<'_>, Error> {
 
                 match stack.last_mut() {
                     Some(PickleValue::List(list)) => {
-                        list.push(item);
+                        Arc::make_mut(list).push(item);
                     }
                     _ => return Err(Error::AppendsWithoutList { op }),
                 }
